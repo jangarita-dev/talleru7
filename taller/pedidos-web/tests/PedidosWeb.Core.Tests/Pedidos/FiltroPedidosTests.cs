@@ -60,6 +60,17 @@ public class FiltroPedidosTests
         Assert.Contains("'desde' (2026-03-31) es mayor que 'hasta' (2026-03-01)", ex.Message);
     }
 
+    // Borde de CA-04: un rango de un solo día es válido
+    [Fact]
+    public void EntreFechas_DesdeIgualAHasta_DevuelveLosPedidosDeEseDia()
+    {
+        var pedidos = new[] { PedidoDel(1, Desde), PedidoDel(2, Desde.AddDays(1)) };
+
+        var resultado = FiltroPedidos.EntreFechas(pedidos, Desde, Desde);
+
+        Assert.Equal([1], resultado.Select(p => p.Id));
+    }
+
     [Fact]
     public void EntreFechas_ListaNull_LanzaArgumentNullException()
     {
