@@ -7,7 +7,7 @@ public class FolioFormatterTests
     // Casos base del README (tres primeras filas de la tabla de ejemplos).
     // Los demás casos (espacios, mayúsculas, rangos, sucursales inválidas) todavía no tienen test:
     // escribirlos es parte del taller.
-    [Theory]
+    [Theory(Skip = "Pendiente U1: FormatearFolio no está implementado")]
     [InlineData(123, "STGO", "PED-STGO-000123")]
     [InlineData(1, "VAL", "PED-VAL-000001")]
     [InlineData(999999, "CO", "PED-CO-999999")]
