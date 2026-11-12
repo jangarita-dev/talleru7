@@ -1,0 +1,71 @@
+# Revisión de Claude en cada PR · modo automatización (prompt fijo, sin @claude).
+# Las reglas (REVIEW.md y AGENTS.md) se leen desde main, nunca desde el PR:
+# así un PR no puede aflojar las reglas que lo revisan.
+# Corre al abrir, reabrir o marcar listo el PR; no en cada push (cuida la cuota).
+# El token NUNCA va escrito aquí: sale del secreto CLAUDE_CODE_OAUTH_TOKEN.
+# Regla del taller: la IA comenta; la persona decide.
+name: Claude Review
+
+on:
+  pull_request:
+    types: [opened, reopened, ready_for_review]
+
+concurrency:
+  group: claude-review-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  review:
+    # No revisa borradores ni PR desde forks (los forks no reciben tus secretos).
+    if: >-
+      github.event.pull_request.draft == false &&
+      github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    permissions:
+      contents: read        # Claude no hace commits
+      pull-requests: read   # leer el PR; los comentarios los publica la Claude GitHub App
+      issues: read
+      id-token: write       # autenticación de la Claude GitHub App
+    steps:
+      # El código del PR, para leer los archivos completos.
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 1
+          persist-credentials: false
+
+      # Las reglas, desde main, en una carpeta aparte.
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: main
+          path: reglas-main
+          sparse-checkout: |
+            taller/pedidos-web/REVIEW.md
+            taller/pedidos-web/AGENTS.md
+          sparse-checkout-cone-mode: false
+          persist-credentials: false
+
+      - uses: anthropics/claude-code-action@4fa93a88de49bbef68b10eb15aabedf28ca0e1ed # v1.0.271
+        with:
+          claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+          prompt: |
+            Revisa el PR ${{ github.repository }}#${{ github.event.pull_request.number }}. Responde en español.
+
+            1. Lee las reglas desde main: reglas-main/taller/pedidos-web/REVIEW.md y
+               reglas-main/taller/pedidos-web/AGENTS.md. Si REVIEW.md no existe ahí, comenta en el PR
+               «Sin REVIEW.md en main: no hay revisión» y termina. Nunca uses el REVIEW.md del PR.
+            2. Mira el cambio con `gh pr diff ${{ github.event.pull_request.number }}`.
+               Revisa solo taller/pedidos-web/; ignora demos/ y reglas-main/.
+               Lee los archivos completos y la spec de specs/ que necesites.
+            3. Aplica REVIEW.md al pie de la letra: qué es Importante, el tope de Detalles,
+               lo que no se reporta y los chequeos de «Revisar siempre».
+            4. Por cada hallazgo, deja un comentario en línea en el archivo y la línea, que empiece
+               con [Importante] o [Detalle] y diga qué pasa y en qué caso concreto falla.
+               Sin evidencia en el código, no lo reportes.
+            5. Al final, un solo comentario de resumen con `gh pr comment`: cuántos hallazgos hay
+               de cada severidad y una línea por cada chequeo de «Revisar siempre» (✅ / ❌).
+            No modifiques archivos ni hagas commits: solo comentas. La decisión es de la persona.
+          claude_args: >-
+            --max-turns 15
+            --allowedTools "Read,Grep,Glob,Bash(gh pr diff:*),Bash(gh pr view:*),Bash(gh pr comment:*),mcp__github_inline_comment__create_inline_comment"
+            --disallowedTools "Edit,Write"
